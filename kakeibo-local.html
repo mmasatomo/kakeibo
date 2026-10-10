@@ -56,10 +56,6 @@
   .cardTitleSub { font-family: 'Zen Kaku Gothic New', sans-serif; font-size: 11.5px; font-weight: 400; color: #9B9788; }
   .emptyText { font-size: 13px; color: #9B9788; text-align: center; padding: 18px 0; }
 
-  .balanceRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .balanceAmount { font-family: 'JetBrains Mono', monospace; font-size: 23px; font-weight: 700; color: #1F2A44; }
-  .balanceMeta { font-size: 11px; color: #9B9788; margin-top: 2px; }
-
   .legendList { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .legendItem { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
   .legendCheck { flex-shrink: 0; width: 14px; height: 14px; margin: 0; cursor: pointer; accent-color: #1F2A44; }
@@ -120,11 +116,6 @@
 
   <div class="connectBar" id="connectBar"></div>
 
-  <section class="card" id="balanceCard">
-    <h2 class="cardTitle">口座残高<span class="cardTitleSub" id="balanceAccountName"></span></h2>
-    <div id="balanceWrap"></div>
-  </section>
-
   <div class="monthNav">
     <button class="navBtn" id="prevMonth" aria-label="前の月">‹</button>
     <span class="monthLabel" id="monthLabel"></span>
@@ -166,17 +157,6 @@
     </div>
   </div>
 
-  <div class="sheetOverlay" id="balanceSheetOverlay">
-    <div class="sheet">
-      <div class="sheetHandle"></div>
-      <h2 class="sheetTitle">口座残高を更新</h2>
-      <label class="field" id="balanceFieldLabel">三井住友銀行<input type="number" inputmode="numeric" id="bAmount" style="font-family:'JetBrains Mono',monospace;"></label>
-      <div class="sheetActions">
-        <button class="cancelBtn" id="bCancel">やめる</button>
-        <button class="saveBtn" id="bSave">更新する</button>
-      </div>
-    </div>
-  </div>
 
 </div>
 
@@ -202,15 +182,11 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
     { key: "通信費", color: "#6B5B95" }, { key: "娯楽", color: "#A85C8C" },
     { key: "医療", color: "#3E8E7E" }, { key: "その他", color: "#7A7A70" },
   ];
-  // 家計簿A(スタンドアロン版)のTX構造に寄せた項目。item_name/charge_to_account_id/payment_date/linked_tx_id/scopeは持たない
-  const HEADER = ['id','tx_number','date','type','category','sub_name','shop','amount','account_id','memo','created_at','updated_at'];
-  // 口座は三井住友銀行の1つのみ。残高はTXの合計と連動させず、別枠で手入力管理する
-  const ACCOUNT = { id: 'sumitomo', name: '三井住友銀行' };
-
+  // ファイルに保存する列。id/tx_number/type/account_id/created_at/updated_atは
+  // このアプリでは不要なため持たない（idはセッション内限定で別途付与する。※後述）
+  const HEADER = ['date','category','sub_name','shop','amount','memo'];
   const isEditCapable = 'showOpenFilePicker' in window;
   let transactions = [];
-  let balance = null;
-  let balanceUpdatedAt = null;
   let fileHandle = null;
   let pendingHandle = null;
   let readOnlyMode = false; // trueの場合、readwrite権限を要求せず編集UIも出さない
@@ -221,41 +197,30 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
   const $ = (id) => document.getElementById(id);
 
   // ---------- xlsx (SheetJS) ----------
-  // ブックは2シート構成: 「残高」(口座残高を手入力管理) と「取引」(TX一覧)
-  const SHEET_BALANCE = '残高';
   const SHEET_TX = '取引';
-  const BALANCE_HEADER = ['口座', '残高', '更新日'];
 
   function parseWorkbook(data) {
     const wb = XLSX.read(data, { type: 'array' });
-    let balance = null, balanceUpdatedAt = null;
-    const balWs = wb.Sheets[SHEET_BALANCE];
-    if (balWs) {
-      const rows = XLSX.utils.sheet_to_json(balWs, { defval: '' });
-      if (rows[0]) {
-        const b = rows[0]['残高'];
-        balance = (b === '' || b == null || isNaN(b)) ? null : Number(b);
-        balanceUpdatedAt = rows[0]['更新日'] || null;
-      }
-    }
     let transactions = [];
     const txWs = wb.Sheets[SHEET_TX];
     if (txWs) {
-      transactions = XLSX.utils.sheet_to_json(txWs, { defval: '' }).map(r => {
-        const obj = {};
-        HEADER.forEach(h => { obj[h] = r[h] ?? ''; });
-        obj.amount = parseFloat(obj.amount) || 0;
-        return obj;
-      // このアプリは支出のみを扱う。古いファイルに収入TXが残っていても表示・編集対象から外す
-      }).filter(t => t.type !== 'income');
+      transactions = XLSX.utils.sheet_to_json(txWs, { defval: '' })
+        // このアプリは支出のみを扱う。type列を持つ古い形式のファイルで収入TXが残っていても表示・編集対象から外す
+        .filter(r => r.type !== 'income')
+        .map(r => {
+          const obj = {};
+          HEADER.forEach(h => { obj[h] = r[h] ?? ''; });
+          obj.amount = parseFloat(obj.amount) || 0;
+          // idはファイルに保存しない。削除操作で行を特定するためセッション内限定で付与する
+          obj.id = uid();
+          return obj;
+        });
     }
-    return { balance, balanceUpdatedAt, transactions };
+    return { transactions };
   }
   // 書き込み用のワークブック(Uint8Array)を作る
   function buildWorkbook() {
     const wb = XLSX.utils.book_new();
-    const balAoa = [BALANCE_HEADER, [ACCOUNT.name, balance ?? '', balanceUpdatedAt ?? '']];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(balAoa), SHEET_BALANCE);
     const txAoa = [HEADER, ...transactions.map(t => HEADER.map(h => h === 'amount' ? (t.amount || 0) : (t[h] ?? '')))];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(txAoa), SHEET_TX);
     return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -294,8 +259,6 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
       const buf = await file.arrayBuffer();
       const parsed = parseWorkbook(new Uint8Array(buf));
       transactions = parsed.transactions;
-      balance = parsed.balance;
-      balanceUpdatedAt = parsed.balanceUpdatedAt;
       renderAll();
     } catch (e) {
       showConnectError('ファイルの読み込みに失敗しました: ' + e.message);
@@ -336,7 +299,6 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
         readOnlyMode = false;
         await idbSet('readOnlyMode', false);
         renderConnectBar();
-        renderBalance();
         renderTxList(getMonthTx());
       }
     } catch (e) { showConnectError('許可を取得できませんでした: ' + e.message); }
@@ -347,7 +309,7 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
         suggestedName: 'kakeibo.xlsx',
         types: [{ description: '家計簿Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
       });
-      fileHandle = handle; readOnlyMode = false; transactions = []; balance = null; balanceUpdatedAt = null; connectErrorMsg = null;
+      fileHandle = handle; readOnlyMode = false; transactions = []; connectErrorMsg = null;
       await saveToFile();
       await idbSet('fileHandle', handle);
       await idbSet('readOnlyMode', false);
@@ -389,8 +351,6 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
       try {
         const parsed = parseWorkbook(new Uint8Array(reader.result));
         transactions = parsed.transactions;
-        balance = parsed.balance;
-        balanceUpdatedAt = parsed.balanceUpdatedAt;
         $('viewFileName').textContent = file.name + ' を表示中';
         renderAll();
       } catch (e) {
@@ -424,11 +384,6 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
     return color;
   }
   function uid() { return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); }
-  function genTxNumber(dateStr) {
-    const dateKey = dateStr.replace(/-/g, '');
-    const seq = transactions.filter(t => t.date === dateStr).length + 1;
-    return `${dateKey}-${String(seq).padStart(3,'0')}`;
-  }
 
   // ---------- Rendering ----------
   function renderConnectBar() {
@@ -474,23 +429,6 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
       $('viewFileInput').onchange = (e) => handleViewFile(e.target.files);
       $('fabAdd').style.display = 'none';
     }
-  }
-
-  function renderBalance() {
-    $('balanceAccountName').textContent = ACCOUNT.name;
-    const wrap = $('balanceWrap');
-    const amtStr = balance == null ? '未設定' : fmtYen(balance);
-    const updatedStr = balanceUpdatedAt ? `更新日: ${String(balanceUpdatedAt).slice(0,10)}` : '';
-    wrap.innerHTML = `
-      <div class="balanceRow">
-        <div>
-          <div class="balanceAmount">${amtStr}</div>
-          <div class="balanceMeta">${updatedStr}</div>
-        </div>
-        ${isEditCapable && fileHandle && !readOnlyMode ? `<button class="btnSmall" id="btnEditBalance">更新する</button>` : ''}
-      </div>
-    `;
-    $('btnEditBalance') && ($('btnEditBalance').onclick = openBalanceSheet);
   }
 
   function renderMonthNav() { $('monthLabel').textContent = fmtMonthLabel(cursor); }
@@ -585,7 +523,7 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
           <div class="txTopRow"><span class="txDate">${(t.date||'').slice(5).replace('-','/')}</span><span class="txCategory">${escapeHtml(t.category || '')}${t.sub_name ? ' / ' + escapeHtml(t.sub_name) : ''}</span></div>
           ${subLine ? `<div class="txMemo">${subLine}</div>` : ''}
         </div>
-        <span class="txAmount" style="color:#B23A2E;">-${fmtYen(t.amount)}</span>
+        <span class="txAmount" style="color:#B23A2E;">${fmtYen(t.amount)}</span>
         ${canEdit ? `<button class="deleteBtn" data-id="${t.id}" aria-label="削除">✕</button>` : ''}
       </li>`;
     }).join('')}</ul>`;
@@ -598,7 +536,6 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
   function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
   function renderAll() {
-    renderBalance();
     renderMonthNav();
     const monthTx = getMonthTx();
     renderLedger(monthTx);
@@ -627,43 +564,20 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
     const amount = parseFloat($('fAmount').value);
     if (!amount || amount <= 0 || !$('fDate').value) return;
     const date = $('fDate').value;
-    const now = new Date().toISOString();
     transactions.push({
       id: uid(),
-      tx_number: genTxNumber(date),
       date,
-      type: 'expense',
       category: $('fCategory').value,
       sub_name: $('fSubName').value.trim(),
       shop: $('fShop').value.trim(),
       amount,
-      account_id: ACCOUNT.id,
       memo: $('fMemo').value.trim(),
-      created_at: now,
-      updated_at: now,
     });
     closeSheet();
     renderAll();
     await saveToFile();
   }
 
-  // ---------- Balance-edit sheet (edit mode only) ----------
-  function openBalanceSheet() {
-    $('balanceFieldLabel').firstChild.textContent = ACCOUNT.name;
-    $('bAmount').value = balance ?? '';
-    $('balanceSheetOverlay').classList.add('open');
-    setTimeout(() => $('bAmount').focus(), 50);
-  }
-  function closeBalanceSheet() { $('balanceSheetOverlay').classList.remove('open'); }
-  async function saveBalance() {
-    const v = parseFloat($('bAmount').value);
-    if (isNaN(v)) return;
-    balance = v;
-    balanceUpdatedAt = new Date().toISOString();
-    closeBalanceSheet();
-    renderBalance();
-    await saveToFile();
-  }
 
   // ---------- Wire up static controls ----------
   $('prevMonth').onclick = () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth()-1, 1); renderAll(); };
@@ -674,9 +588,6 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
   $('fSave').onclick = saveEntry;
   $('sortByDate').onchange = () => { txSortMode = 'date'; renderTxList(getMonthTx()); };
   $('sortByAmount').onchange = () => { txSortMode = 'amount'; renderTxList(getMonthTx()); };
-  $('balanceSheetOverlay').onclick = (e) => { if (e.target.id === 'balanceSheetOverlay') closeBalanceSheet(); };
-  $('bCancel').onclick = closeBalanceSheet;
-  $('bSave').onclick = saveBalance;
 
   // ---------- Init ----------
   if (isEditCapable) {
