@@ -34,12 +34,20 @@
     display: flex; flex-direction: column; gap: 8px;
   }
   .connectRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .statusDot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
   .btnSmall {
     padding: 6px 12px; border-radius: 7px; border: 1.5px solid #3B4B7A; background: #FBFAF6;
     color: #3B4B7A; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
   }
   .btnSmall.ghost { border-color: #DEDACB; color: #8A8676; }
+
+  .backRow { margin-bottom: 10px; }
+
+  .overviewChart { width: 100%; height: auto; margin-bottom: 14px; }
+  .overviewList { list-style: none; margin: 0; padding: 0; }
+  .overviewRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px dashed #E2DECE; cursor: pointer; }
+  .overviewRow:last-child { border-bottom: none; }
+  .overviewMonthLabel { font-family: 'Shippori Mincho', serif; font-size: 13.5px; color: #1F2A44; }
+  .overviewAmount { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: #4A4636; }
 
   .monthNav { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 14px; }
   .navBtn { background: none; border: none; font-size: 22px; color: #3B4B7A; cursor: pointer; padding: 4px 10px; }
@@ -77,26 +85,6 @@
   .txCategory { font-size: 13px; color: #4A4636; font-weight: 500; }
   .txMemo { font-size: 11.5px; color: #9B9788; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .txAmount { font-family: 'JetBrains Mono', monospace; font-size: 13.5px; font-weight: 600; flex-shrink: 0; }
-  .deleteBtn { background: none; border: none; color: #C9C4B4; font-size: 13px; cursor: pointer; padding: 2px 4px; flex-shrink: 0; }
-
-  .fab {
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(140px);
-    width: 54px; height: 54px; border-radius: 50%; background: #1F2A44; color: #F2F1EB;
-    border: none; font-size: 26px; line-height: 1; cursor: pointer; box-shadow: 0 4px 14px rgba(31,42,68,0.35);
-  }
-  @media (max-width: 480px) { .fab { transform: none; right: 24px; left: auto; } }
-
-  .sheetOverlay { position: fixed; inset: 0; background: rgba(31,42,68,0.35); display: none; align-items: flex-end; justify-content: center; z-index: 50; }
-  .sheetOverlay.open { display: flex; }
-  .sheet { width: 100%; max-width: 480px; background: #FBFAF6; border-radius: 18px 18px 0 0; padding: 10px 20px 24px; display: flex; flex-direction: column; gap: 12px; max-height: 88vh; overflow-y: auto; }
-  .sheetHandle { width: 38px; height: 4px; border-radius: 2px; background: #DEDACB; margin: 6px auto 4px; }
-  .sheetTitle { font-family: 'Shippori Mincho', serif; font-size: 18px; font-weight: 700; margin: 0 0 4px; color: #1F2A44; }
-  label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: #6B675C; }
-  .field input, .field select { padding: 10px 12px; border-radius: 8px; border: 1.5px solid #DEDACB; font-size: 15px; background: #fff; color: #1F2A2A; }
-  .sheetActions { display: flex; gap: 10px; margin-top: 6px; }
-  .cancelBtn { flex: 1; padding: 12px 0; border-radius: 9px; border: 1.5px solid #DEDACB; background: #FBFAF6; color: #6B675C; font-size: 14.5px; font-weight: 600; cursor: pointer; }
-  .saveBtn { flex: 2; padding: 12px 0; border-radius: 9px; border: none; background: #1F2A44; color: #F2F1EB; font-size: 14.5px; font-weight: 700; cursor: pointer; }
-  .saveBtn:disabled { opacity: .5; }
 
   .fileInputLabel { display: inline-block; padding: 6px 12px; border-radius: 7px; border: 1.5px solid #3B4B7A; color: #3B4B7A; font-size: 12px; font-weight: 600; cursor: pointer; }
   .fileInputLabel input { display: none; }
@@ -116,47 +104,38 @@
 
   <div class="connectBar" id="connectBar"></div>
 
-  <div class="monthNav">
-    <button class="navBtn" id="prevMonth" aria-label="前の月">‹</button>
-    <span class="monthLabel" id="monthLabel"></span>
-    <button class="navBtn" id="nextMonth" aria-label="次の月">›</button>
-  </div>
-
-  <section class="ledgerBar" id="ledgerBar"></section>
-
-  <section class="card">
-    <h2 class="cardTitle">内訳<span class="cardTitleSub">今月の支出</span></h2>
-    <div id="pieWrap"></div>
+  <section class="card" id="overviewSection">
+    <h2 class="cardTitle">月別の推移<span class="cardTitleSub" id="overviewCount"></span></h2>
+    <div id="overviewWrap"></div>
   </section>
 
-  <section class="card">
-    <h2 class="cardTitle">記録<span class="cardTitleSub" id="txCount"></span></h2>
-    <div class="sortRow" id="sortRow">
-      <label class="sortRadio"><input type="radio" name="txSort" value="date" id="sortByDate" checked>日にち順</label>
-      <label class="sortRadio"><input type="radio" name="txSort" value="amount" id="sortByAmount">金額順</label>
+  <div id="monthSection" style="display:none;">
+    <div class="backRow">
+      <button class="btnSmall ghost" id="backToOverview">‹ 月別一覧</button>
     </div>
-    <div id="txListWrap"></div>
-  </section>
 
-  <button class="fab" id="fabAdd" aria-label="記入する" style="display:none;">＋</button>
+    <div class="monthNav">
+      <button class="navBtn" id="prevMonth" aria-label="前の月">‹</button>
+      <span class="monthLabel" id="monthLabel"></span>
+      <button class="navBtn" id="nextMonth" aria-label="次の月">›</button>
+    </div>
 
-  <div class="sheetOverlay" id="sheetOverlay">
-    <div class="sheet">
-      <div class="sheetHandle"></div>
-      <h2 class="sheetTitle">記入する</h2>
-      <label class="field">日付<input type="date" id="fDate"></label>
-      <label class="field">大項目<select id="fCategory"></select></label>
-      <label class="field">内訳(任意)<input type="text" placeholder="例:外食" id="fSubName"></label>
-      <label class="field">お店(任意)<input type="text" placeholder="例:ロイヤルホスト" id="fShop"></label>
-      <label class="field">金額<input type="number" inputmode="numeric" placeholder="0" id="fAmount" style="font-family:'JetBrains Mono',monospace;"></label>
-      <label class="field">メモ(任意)<input type="text" placeholder="任意のメモ" id="fMemo"></label>
-      <div class="sheetActions">
-        <button class="cancelBtn" id="fCancel">やめる</button>
-        <button class="saveBtn" id="fSave">記入する</button>
+    <section class="ledgerBar" id="ledgerBar"></section>
+
+    <section class="card">
+      <h2 class="cardTitle">内訳<span class="cardTitleSub">今月の支出</span></h2>
+      <div id="pieWrap"></div>
+    </section>
+
+    <section class="card">
+      <h2 class="cardTitle">記録<span class="cardTitleSub" id="txCount"></span></h2>
+      <div class="sortRow" id="sortRow">
+        <label class="sortRadio"><input type="radio" name="txSort" value="date" id="sortByDate" checked>日にち順</label>
+        <label class="sortRadio"><input type="radio" name="txSort" value="amount" id="sortByAmount">金額順</label>
       </div>
-    </div>
+      <div id="txListWrap"></div>
+    </section>
   </div>
-
 
 </div>
 
@@ -182,15 +161,12 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
     { key: "通信費", color: "#6B5B95" }, { key: "娯楽", color: "#A85C8C" },
     { key: "医療", color: "#3E8E7E" }, { key: "その他", color: "#7A7A70" },
   ];
-  // ファイルに保存する列。id/tx_number/type/account_id/created_at/updated_atは
-  // このアプリでは不要なため持たない（idはセッション内限定で別途付与する。※後述）
+  // ファイルから読み込む列。id/tx_number/type/account_id/created_at/updated_atは
+  // このアプリでは扱わない（編集機能なし・閲覧専用のため）
   const HEADER = ['date','category','sub_name','shop','amount','memo'];
-  const isEditCapable = 'showOpenFilePicker' in window;
   let transactions = [];
-  let fileHandle = null;
-  let pendingHandle = null;
-  let readOnlyMode = false; // trueの場合、readwrite権限を要求せず編集UIも出さない
   let cursor = new Date();
+  let view = 'overview'; // 'overview'(月別一覧) | 'month'(月別詳細)
   let txSortMode = 'date'; // 'date' | 'amount'
   let hiddenCategories = new Set(); // チェックを外したカテゴリ名（TX一覧から除外）
 
@@ -205,144 +181,22 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
     const txWs = wb.Sheets[SHEET_TX];
     if (txWs) {
       transactions = XLSX.utils.sheet_to_json(txWs, { defval: '' })
-        // このアプリは支出のみを扱う。type列を持つ古い形式のファイルで収入TXが残っていても表示・編集対象から外す
+        // 古い形式(type列あり)のファイルで収入TXが残っていても表示対象から外す
         .filter(r => r.type !== 'income')
         .map(r => {
           const obj = {};
           HEADER.forEach(h => { obj[h] = r[h] ?? ''; });
           obj.amount = parseFloat(obj.amount) || 0;
-          // idはファイルに保存しない。削除操作で行を特定するためセッション内限定で付与する
-          obj.id = uid();
           return obj;
         });
     }
     return { transactions };
   }
-  // 書き込み用のワークブック(Uint8Array)を作る
-  function buildWorkbook() {
-    const wb = XLSX.utils.book_new();
-    const txAoa = [HEADER, ...transactions.map(t => HEADER.map(h => h === 'amount' ? (t.amount || 0) : (t[h] ?? '')))];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(txAoa), SHEET_TX);
-    return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  }
 
-  // ---------- IndexedDB (store file handle for auto-reconnect) ----------
-  function idbOpen() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open('kakeibo-db', 1);
-      req.onupgradeneeded = () => req.result.createObjectStore('handles');
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  }
-  async function idbSet(key, val) {
-    const db = await idbOpen();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('handles', 'readwrite');
-      tx.objectStore('handles').put(val, key);
-      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
-    });
-  }
-  async function idbGet(key) {
-    const db = await idbOpen();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('handles', 'readonly');
-      const r = tx.objectStore('handles').get(key);
-      r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error);
-    });
-  }
-
-  // ---------- File I/O (Windows / edit mode) ----------
-  async function loadFromFile() {
-    try {
-      const file = await fileHandle.getFile();
-      const buf = await file.arrayBuffer();
-      const parsed = parseWorkbook(new Uint8Array(buf));
-      transactions = parsed.transactions;
-      renderAll();
-    } catch (e) {
-      showConnectError('ファイルの読み込みに失敗しました: ' + e.message);
-    }
-  }
-  async function saveToFile() {
-    if (!fileHandle) return;
-    try {
-      const writable = await fileHandle.createWritable();
-      await writable.write(buildWorkbook());
-      await writable.close();
-    } catch (e) {
-      showConnectError('保存に失敗しました: ' + e.message);
-    }
-  }
+  // ---------- View mode (閲覧専用・編集機能なし) ----------
   let connectErrorMsg = null;
   function showConnectError(msg) { connectErrorMsg = msg; renderConnectBar(); }
 
-  // mode: 'readwrite'(編集) または 'read'(閲覧のみ、書き込み権限は要求しない)
-  async function connectExisting(mode) {
-    try {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{ description: '家計簿Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
-      });
-      if (mode === 'readwrite') await handle.requestPermission({ mode: 'readwrite' });
-      fileHandle = handle; readOnlyMode = (mode !== 'readwrite'); connectErrorMsg = null;
-      await idbSet('fileHandle', handle);
-      await idbSet('readOnlyMode', readOnlyMode);
-      await loadFromFile();
-      renderConnectBar();
-    } catch (e) { if (e.name !== 'AbortError') showConnectError('開けませんでした: ' + e.message); }
-  }
-  // 接続中のファイルを変更せず、権限だけ閲覧→編集に引き上げる
-  async function upgradeToEdit() {
-    try {
-      const perm = await fileHandle.requestPermission({ mode: 'readwrite' });
-      if (perm === 'granted') {
-        readOnlyMode = false;
-        await idbSet('readOnlyMode', false);
-        renderConnectBar();
-        renderTxList(getMonthTx());
-      }
-    } catch (e) { showConnectError('許可を取得できませんでした: ' + e.message); }
-  }
-  async function createNew() {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: 'kakeibo.xlsx',
-        types: [{ description: '家計簿Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
-      });
-      fileHandle = handle; readOnlyMode = false; transactions = []; connectErrorMsg = null;
-      await saveToFile();
-      await idbSet('fileHandle', handle);
-      await idbSet('readOnlyMode', false);
-      renderAll();
-    } catch (e) { if (e.name !== 'AbortError') showConnectError('作成できませんでした: ' + e.message); }
-  }
-  // mode省略時は前回の readOnlyMode 設定を引き継ぐ
-  async function reconnect(mode) {
-    const wantReadwrite = mode ? mode === 'readwrite' : !readOnlyMode;
-    try {
-      const perm = await pendingHandle.requestPermission({ mode: wantReadwrite ? 'readwrite' : 'read' });
-      if (perm === 'granted') {
-        fileHandle = pendingHandle; pendingHandle = null; connectErrorMsg = null;
-        readOnlyMode = !wantReadwrite;
-        await idbSet('readOnlyMode', readOnlyMode);
-        await loadFromFile();
-        renderConnectBar();
-      }
-    } catch (e) { showConnectError('許可を取得できませんでした: ' + e.message); }
-  }
-  async function tryAutoConnect() {
-    try {
-      const handle = await idbGet('fileHandle');
-      if (!handle) { renderConnectBar(); return; }
-      readOnlyMode = !!(await idbGet('readOnlyMode'));
-      const perm = await handle.queryPermission({ mode: readOnlyMode ? 'read' : 'readwrite' });
-      if (perm === 'granted') { fileHandle = handle; await loadFromFile(); }
-      else { pendingHandle = handle; }
-    } catch (e) { /* no saved handle yet */ }
-    renderConnectBar();
-  }
-
-  // ---------- View mode (iPhone) ----------
   function handleViewFile(fileList) {
     const file = fileList[0];
     if (!file) return;
@@ -351,8 +205,11 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
       try {
         const parsed = parseWorkbook(new Uint8Array(reader.result));
         transactions = parsed.transactions;
+        connectErrorMsg = null;
+        renderConnectBar();
         $('viewFileName').textContent = file.name + ' を表示中';
-        renderAll();
+        view = 'overview';
+        render();
       } catch (e) {
         showConnectError('読み込みに失敗しました: ' + e.message);
       }
@@ -383,54 +240,121 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
     catColorCache[cacheKey] = color;
     return color;
   }
-  function uid() { return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8); }
-
   // ---------- Rendering ----------
   function renderConnectBar() {
     const bar = $('connectBar');
-    if (isEditCapable) {
-      let statusHtml, actionsHtml;
-      if (fileHandle) {
-        statusHtml = readOnlyMode
-          ? `<span class="statusDot" style="background:#5B6E8C;"></span>連携中(閲覧のみ・保存されません)`
-          : `<span class="statusDot" style="background:#3E6B52;"></span>連携中(編集モード・自動で保存されます)`;
-        actionsHtml = `<button class="btnSmall ghost" id="btnSwitchFile">別のファイルにする</button>`
-          + (readOnlyMode ? `<button class="btnSmall" id="btnUpgradeEdit">編集を有効にする</button>` : '');
-      } else if (pendingHandle) {
-        statusHtml = `<span class="statusDot" style="background:#B8923F;"></span>前回のファイルへの接続を許可してください`;
-        actionsHtml = `<button class="btnSmall" id="btnReconnectView">閲覧のみで許可する</button><button class="btnSmall ghost" id="btnReconnectEdit">編集を許可する</button>`;
-      } else {
-        statusHtml = `<span class="statusDot" style="background:#C9C4B4;"></span>まだファイルと連携していません`;
-        actionsHtml = `<button class="btnSmall" id="btnConnectView">開く(閲覧のみ)</button><button class="btnSmall" id="btnConnectEdit">開く(編集)</button><button class="btnSmall ghost" id="btnCreate">新規作成</button>`;
-      }
-      bar.innerHTML = `
-        <div class="connectRow"><span>${statusHtml}</span></div>
-        <div class="connectRow">${actionsHtml}</div>
-        ${connectErrorMsg ? `<div style="color:#B23A2E;">${connectErrorMsg}</div>` : ''}
-        <div>共有フォルダ(SMB)内のExcel(.xlsx)を指定できます。「編集」は入力するたびそのファイルへ自動保存、「閲覧のみ」は書き込み権限を要求せず内容の確認だけできます。</div>
-      `;
-      $('btnConnectView') && ($('btnConnectView').onclick = () => connectExisting('read'));
-      $('btnConnectEdit') && ($('btnConnectEdit').onclick = () => connectExisting('readwrite'));
-      $('btnCreate') && ($('btnCreate').onclick = createNew);
-      $('btnSwitchFile') && ($('btnSwitchFile').onclick = () => connectExisting(readOnlyMode ? 'read' : 'readwrite'));
-      $('btnUpgradeEdit') && ($('btnUpgradeEdit').onclick = upgradeToEdit);
-      $('btnReconnectView') && ($('btnReconnectView').onclick = () => reconnect('read'));
-      $('btnReconnectEdit') && ($('btnReconnectEdit').onclick = () => reconnect('readwrite'));
-      $('fabAdd').style.display = (fileHandle && !readOnlyMode) ? 'block' : 'none';
+    bar.innerHTML = `
+      <div class="connectRow">
+        <span id="viewFileName">まだファイルが選択されていません</span>
+        <label class="fileInputLabel">ファイルを選択<input type="file" id="viewFileInput" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+      </div>
+      ${connectErrorMsg ? `<div style="color:#B23A2E;">${connectErrorMsg}</div>` : ''}
+    `;
+    $('viewFileInput').onchange = (e) => handleViewFile(e.target.files);
+  }
+
+  // view('overview'|'month')に応じて表示するセクションを切り替える
+  function render() {
+    if (view === 'overview') {
+      $('overviewSection').style.display = '';
+      $('monthSection').style.display = 'none';
+      renderOverview();
     } else {
-      bar.innerHTML = `
-        <div class="connectRow">
-          <span id="viewFileName">まだファイルが選択されていません(閲覧専用)</span>
-          <label class="fileInputLabel">ファイルを選択<input type="file" id="viewFileInput" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
-        </div>
-        ${connectErrorMsg ? `<div style="color:#B23A2E;">${connectErrorMsg}</div>` : ''}
-        <div>Windows PCで入力されたExcel(.xlsx)を、共有(SMB)経由のFilesアプリから選んでください。更新を見るにはもう一度選び直してください。</div>
-      `;
-      $('viewFileInput').onchange = (e) => handleViewFile(e.target.files);
-      $('fabAdd').style.display = 'none';
+      $('overviewSection').style.display = 'none';
+      $('monthSection').style.display = '';
+      renderMonthView();
     }
   }
 
+  // ---------- 月別一覧（ファイル読み込み直後の画面） ----------
+  function renderOverview() {
+    const map = {};
+    for (const t of transactions) {
+      const key = (t.date || '').slice(0, 7);
+      if (!key) continue;
+      map[key] = (map[key] || 0) + t.amount;
+    }
+    const monthsAsc = Object.keys(map).sort(); // 折れ線グラフ用: 古い→新しい
+    $('overviewCount').textContent = monthsAsc.length ? `全${monthsAsc.length}ヶ月` : '';
+    const wrap = $('overviewWrap');
+    if (!monthsAsc.length) {
+      wrap.innerHTML = `<p class="emptyText">上の「ファイルを選択」からExcel(.xlsx)を読み込んでください。</p>`;
+      return;
+    }
+    const monthsDesc = [...monthsAsc].reverse(); // 一覧用: 新しい→古い
+    wrap.innerHTML = `
+      <canvas id="overviewCanvas" class="overviewChart" width="340" height="160"></canvas>
+      <ul class="overviewList">${monthsDesc.map(m => {
+        const [y, mo] = m.split('-').map(Number);
+        return `
+        <li class="overviewRow" data-ym="${m}">
+          <span class="overviewMonthLabel">${y}年${mo}月</span>
+          <span class="overviewAmount">${fmtYen(map[m])}</span>
+        </li>`;
+      }).join('')}</ul>`;
+    drawLineChart($('overviewCanvas'), monthsAsc, map);
+    wrap.querySelectorAll('.overviewRow').forEach(row => {
+      row.onclick = () => goToMonth(row.dataset.ym);
+    });
+  }
+
+  // 月別推移を折れ線グラフで描画する（X軸: 月を古い→新しい順、Y軸: 月の支出合計）
+  function drawLineChart(canvas, months, map) {
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth || 340;
+    const height = canvas.clientHeight || 160;
+    canvas.width = width * dpr; canvas.height = height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const padL = 46, padR = 12, padT = 14, padB = 26;
+    const plotW = Math.max(1, width - padL - padR);
+    const plotH = Math.max(1, height - padT - padB);
+
+    const values = months.map(m => Math.max(0, map[m] || 0));
+    const maxV = Math.max(...values, 1);
+
+    // Y軸グリッド線（0とmax）
+    ctx.strokeStyle = '#E2DECE'; ctx.lineWidth = 1;
+    ctx.fillStyle = '#9B9788'; ctx.font = '10px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'right';
+    [0, 1].forEach(ratio => {
+      const y = padT + plotH * (1 - ratio);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(width - padR, y); ctx.stroke();
+      ctx.fillText(ratio === 0 ? '¥0' : fmtYen(maxV), padL - 6, y + 3);
+    });
+
+    // 折れ線・点
+    const n = months.length;
+    const points = months.map((m, i) => ({
+      x: padL + (n > 1 ? (plotW / (n - 1)) * i : plotW / 2),
+      y: padT + plotH * (1 - values[i] / maxV),
+    }));
+    ctx.strokeStyle = '#B23A2E'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath();
+    points.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+    ctx.stroke();
+    ctx.fillStyle = '#B23A2E';
+    points.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); ctx.fill(); });
+
+    // X軸ラベル（年が変わる/先頭の点だけ年を表示）
+    ctx.fillStyle = '#9B9788'; ctx.textAlign = 'center'; ctx.font = '10px "Zen Kaku Gothic New", sans-serif';
+    months.forEach((m, i) => {
+      const [y, mo] = m.split('-').map(Number);
+      const prevY = i > 0 ? Number(months[i - 1].split('-')[0]) : null;
+      const label = (i === 0 || y !== prevY) ? `${y}/${mo}` : `${mo}月`;
+      ctx.fillText(label, points[i].x, height - 8);
+    });
+  }
+
+  function goToMonth(ym) {
+    const [y, m] = ym.split('-').map(Number);
+    cursor = new Date(y, m - 1, 1);
+    view = 'month';
+    render();
+  }
+
+  // ---------- 月別詳細 ----------
   function renderMonthNav() { $('monthLabel').textContent = fmtMonthLabel(cursor); }
 
   function getMonthTx() {
@@ -505,9 +429,8 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
     const filtered = monthTx.filter(t => !hiddenCategories.has(t.category));
     $('txCount').textContent = filtered.length + '件';
     const wrap = $('txListWrap');
-    const canEdit = isEditCapable && !readOnlyMode;
     if (!filtered.length) {
-      wrap.innerHTML = `<p class="emptyText">${canEdit && !monthTx.length ? '右下の「＋」から記入してください。' : 'この月の記録はありません。'}</p>`;
+      wrap.innerHTML = `<p class="emptyText">この月の記録はありません。</p>`;
       return;
     }
     const sorted = [...filtered].sort((a,b) => {
@@ -524,18 +447,12 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
           ${subLine ? `<div class="txMemo">${subLine}</div>` : ''}
         </div>
         <span class="txAmount" style="color:#B23A2E;">${fmtYen(t.amount)}</span>
-        ${canEdit ? `<button class="deleteBtn" data-id="${t.id}" aria-label="削除">✕</button>` : ''}
       </li>`;
     }).join('')}</ul>`;
-    if (canEdit) {
-      wrap.querySelectorAll('.deleteBtn').forEach(btn => {
-        btn.onclick = () => deleteTx(btn.dataset.id);
-      });
-    }
   }
   function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-  function renderAll() {
+  function renderMonthView() {
     renderMonthNav();
     const monthTx = getMonthTx();
     renderLedger(monthTx);
@@ -543,61 +460,16 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
     renderTxList(monthTx);
   }
 
-  async function deleteTx(id) {
-    transactions = transactions.filter(t => t.id !== id);
-    renderAll();
-    await saveToFile();
-  }
-
-  // ---------- Add-entry sheet (edit mode only) ----------
-  function populateCategories() {
-    $('fCategory').innerHTML = EXPENSE_CATEGORIES.map(c => `<option value="${c.key}">${c.key}</option>`).join('');
-  }
-  function openSheet() {
-    $('fDate').value = new Date().toISOString().slice(0,10);
-    $('fAmount').value = ''; $('fMemo').value = ''; $('fSubName').value = ''; $('fShop').value = '';
-    populateCategories();
-    $('sheetOverlay').classList.add('open');
-  }
-  function closeSheet() { $('sheetOverlay').classList.remove('open'); }
-  async function saveEntry() {
-    const amount = parseFloat($('fAmount').value);
-    if (!amount || amount <= 0 || !$('fDate').value) return;
-    const date = $('fDate').value;
-    transactions.push({
-      id: uid(),
-      date,
-      category: $('fCategory').value,
-      sub_name: $('fSubName').value.trim(),
-      shop: $('fShop').value.trim(),
-      amount,
-      memo: $('fMemo').value.trim(),
-    });
-    closeSheet();
-    renderAll();
-    await saveToFile();
-  }
-
-
   // ---------- Wire up static controls ----------
-  $('prevMonth').onclick = () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth()-1, 1); renderAll(); };
-  $('nextMonth').onclick = () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1); renderAll(); };
-  $('fabAdd').onclick = openSheet;
-  $('sheetOverlay').onclick = (e) => { if (e.target.id === 'sheetOverlay') closeSheet(); };
-  $('fCancel').onclick = closeSheet;
-  $('fSave').onclick = saveEntry;
+  $('backToOverview').onclick = () => { view = 'overview'; render(); };
+  $('prevMonth').onclick = () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth()-1, 1); renderMonthView(); };
+  $('nextMonth').onclick = () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1); renderMonthView(); };
   $('sortByDate').onchange = () => { txSortMode = 'date'; renderTxList(getMonthTx()); };
   $('sortByAmount').onchange = () => { txSortMode = 'amount'; renderTxList(getMonthTx()); };
 
   // ---------- Init ----------
-  if (isEditCapable) {
-    $('subtitle').textContent = '支出をつけて、流れをみる(このPCで入力)';
-    tryAutoConnect();
-  } else {
-    $('subtitle').textContent = '支出をつけて、流れをみる(閲覧専用)';
-    renderConnectBar();
-  }
-  renderAll();
+  renderConnectBar();
+  render();
 })();
 </script>
 </body>
