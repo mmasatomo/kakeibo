@@ -364,7 +364,9 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
       const ratio = i / Y_DIVISIONS;
       const y = padT + plotH * (1 - ratio);
       ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(width - padR, y); ctx.stroke();
-      ctx.fillText(ratio === 0 ? '¥0' : fmtYen(maxV * ratio), padL - 6, y + 3);
+      // ラベルは万の位で四捨五入（線自体の位置は正確な値のまま）
+      const rounded = Math.round((maxV * ratio) / 10000) * 10000;
+      ctx.fillText(fmtYen(rounded), padL - 6, y + 3);
     }
 
     // 縦軸グリッド線（月ごと）
