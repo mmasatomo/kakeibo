@@ -169,6 +169,7 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
   let view = 'overview'; // 'overview'(月別一覧) | 'month'(月別詳細)
   let txSortMode = 'date'; // 'date' | 'amount'
   let hiddenCategories = new Set(); // チェックを外したカテゴリ名（TX一覧から除外）
+  let hiddenOverviewSeries = new Set(); // チェックを外した系列名（月別推移グラフから除外）
 
   const $ = (id) => document.getElementById(id);
 
@@ -268,13 +269,17 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
 
   // ---------- 月別一覧（ファイル読み込み直後の画面） ----------
   function renderOverview() {
-    const map = {};
+    const totalMap = {};
+    const catMonthMap = {}; // category -> { month: sum }
     for (const t of transactions) {
       const key = (t.date || '').slice(0, 7);
       if (!key) continue;
-      map[key] = (map[key] || 0) + t.amount;
+      totalMap[key] = (totalMap[key] || 0) + t.amount;
+      const cat = t.category || 'その他';
+      if (!catMonthMap[cat]) catMonthMap[cat] = {};
+      catMonthMap[cat][key] = (catMonthMap[cat][key] || 0) + t.amount;
     }
-    const monthsAsc = Object.keys(map).sort(); // 折れ線グラフ用: 古い→新しい
+    const monthsAsc = Object.keys(totalMap).sort(); // 折れ線グラフ用: 古い→新しい
     $('overviewCount').textContent = monthsAsc.length ? `全${monthsAsc.length}ヶ月` : '';
     const wrap = $('overviewWrap');
     if (!monthsAsc.length) {
@@ -282,28 +287,62 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
       return;
     }
     const monthsDesc = [...monthsAsc].reverse(); // 一覧用: 新しい→古い
+
+    // カテゴリは合計支出額が大きい順に並べる
+    const categories = Object.keys(catMonthMap).sort((a, b) => {
+      const sum = (cat) => monthsAsc.reduce((s, m) => s + (catMonthMap[cat][m] || 0), 0);
+      return sum(b) - sum(a);
+    });
+    const series = [
+      { name: '合計', color: '#1F2A44', width: 2.5, values: monthsAsc.map(m => Math.max(0, totalMap[m] || 0)) },
+      ...categories.map(cat => ({
+        name: cat,
+        color: catColor(cat),
+        width: 1.5,
+        values: monthsAsc.map(m => Math.max(0, catMonthMap[cat][m] || 0)),
+      })),
+    ];
+
     wrap.innerHTML = `
-      <canvas id="overviewCanvas" class="overviewChart" width="340" height="160"></canvas>
+      <canvas id="overviewCanvas" class="overviewChart" width="340" height="200"></canvas>
+      <ul class="legendList">${series.map(s => {
+        const checked = hiddenOverviewSeries.has(s.name) ? '' : 'checked';
+        return `
+        <li class="legendItem">
+          <input type="checkbox" class="legendCheck" data-series="${escapeHtml(s.name)}" ${checked}>
+          <span class="legendDot" style="background:${s.color};"></span>
+          <span class="legendName">${escapeHtml(s.name)}</span>
+        </li>`;
+      }).join('')}</ul>
       <ul class="overviewList">${monthsDesc.map(m => {
         const [y, mo] = m.split('-').map(Number);
         return `
         <li class="overviewRow" data-ym="${m}">
           <span class="overviewMonthLabel">${y}年${mo}月</span>
-          <span class="overviewAmount">${fmtYen(map[m])}</span>
+          <span class="overviewAmount">${fmtYen(totalMap[m])}</span>
         </li>`;
       }).join('')}</ul>`;
-    drawLineChart($('overviewCanvas'), monthsAsc, map);
+    const visibleSeries = series.filter(s => !hiddenOverviewSeries.has(s.name));
+    drawLineChart($('overviewCanvas'), monthsAsc, visibleSeries);
+    wrap.querySelectorAll('.legendCheck').forEach(cb => {
+      cb.onchange = () => {
+        const name = cb.dataset.series;
+        if (cb.checked) hiddenOverviewSeries.delete(name); else hiddenOverviewSeries.add(name);
+        renderOverview();
+      };
+    });
     wrap.querySelectorAll('.overviewRow').forEach(row => {
       row.onclick = () => goToMonth(row.dataset.ym);
     });
   }
 
-  // 月別推移を折れ線グラフで描画する（X軸: 月を古い→新しい順、Y軸: 月の支出合計）
-  function drawLineChart(canvas, months, map) {
+  // 月別推移を折れ線グラフで描画する（X軸: 月を古い→新しい順、Y軸: 各系列の月別合計）
+  // series: [{ name, color, width, values }]（valuesはmonthsと同じ並び）
+  function drawLineChart(canvas, months, series) {
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     const width = canvas.clientWidth || 340;
-    const height = canvas.clientHeight || 160;
+    const height = canvas.clientHeight || 200;
     canvas.width = width * dpr; canvas.height = height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
@@ -312,30 +351,40 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
     const plotW = Math.max(1, width - padL - padR);
     const plotH = Math.max(1, height - padT - padB);
 
-    const values = months.map(m => Math.max(0, map[m] || 0));
-    const maxV = Math.max(...values, 1);
+    const maxV = Math.max(...series.flatMap(s => s.values), 1);
+    const n = months.length;
+    const xAt = (i) => padL + (n > 1 ? (plotW / (n - 1)) * i : plotW / 2);
+    const yAt = (v) => padT + plotH * (1 - v / maxV);
 
-    // Y軸グリッド線（0とmax）
+    // 横軸グリッド線（0〜maxを4分割して表示、各ラインに金額ラベル）
+    const Y_DIVISIONS = 4;
     ctx.strokeStyle = '#E2DECE'; ctx.lineWidth = 1;
     ctx.fillStyle = '#9B9788'; ctx.font = '10px "Zen Kaku Gothic New", sans-serif'; ctx.textAlign = 'right';
-    [0, 1].forEach(ratio => {
+    for (let i = 0; i <= Y_DIVISIONS; i++) {
+      const ratio = i / Y_DIVISIONS;
       const y = padT + plotH * (1 - ratio);
       ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(width - padR, y); ctx.stroke();
-      ctx.fillText(ratio === 0 ? '¥0' : fmtYen(maxV), padL - 6, y + 3);
+      ctx.fillText(ratio === 0 ? '¥0' : fmtYen(maxV * ratio), padL - 6, y + 3);
+    }
+
+    // 縦軸グリッド線（月ごと）
+    ctx.strokeStyle = '#E2DECE'; ctx.lineWidth = 1;
+    months.forEach((m, i) => {
+      const x = xAt(i);
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
     });
 
-    // 折れ線・点
-    const n = months.length;
-    const points = months.map((m, i) => ({
-      x: padL + (n > 1 ? (plotW / (n - 1)) * i : plotW / 2),
-      y: padT + plotH * (1 - values[i] / maxV),
-    }));
-    ctx.strokeStyle = '#B23A2E'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    ctx.beginPath();
-    points.forEach((p, i) => { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
-    ctx.stroke();
-    ctx.fillStyle = '#B23A2E';
-    points.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); ctx.fill(); });
+    // カテゴリ線を先に描き、合計線を最後（一番手前）に描く
+    const ordered = [...series.slice(1), series[0]];
+    ordered.forEach(s => {
+      ctx.strokeStyle = s.color; ctx.lineWidth = s.width; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.beginPath();
+      s.values.forEach((v, i) => { const x = xAt(i), y = yAt(v); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+      ctx.stroke();
+      ctx.fillStyle = s.color;
+      const r = s.width > 2 ? 3.2 : 2.2;
+      s.values.forEach((v, i) => { ctx.beginPath(); ctx.arc(xAt(i), yAt(v), r, 0, Math.PI * 2); ctx.fill(); });
+    });
 
     // X軸ラベル（年が変わる/先頭の点だけ年を表示）
     ctx.fillStyle = '#9B9788'; ctx.textAlign = 'center'; ctx.font = '10px "Zen Kaku Gothic New", sans-serif';
@@ -343,7 +392,7 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
       const [y, mo] = m.split('-').map(Number);
       const prevY = i > 0 ? Number(months[i - 1].split('-')[0]) : null;
       const label = (i === 0 || y !== prevY) ? `${y}/${mo}` : `${mo}月`;
-      ctx.fillText(label, points[i].x, height - 8);
+      ctx.fillText(label, xAt(i), height - 8);
     });
   }
 
