@@ -82,7 +82,7 @@
   .txMain { flex: 1; min-width: 0; }
   .txTopRow { display: flex; gap: 8px; align-items: baseline; }
   .txDate { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: #9B9788; }
-  .txCategory { font-size: 13px; color: #4A4636; font-weight: 500; }
+  .txCategory { font-size: 13px; color: #4A4636; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
   .txMemo { font-size: 11.5px; color: #9B9788; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .txAmount { font-family: 'JetBrains Mono', monospace; font-size: 13.5px; font-weight: 600; flex-shrink: 0; }
 
@@ -163,7 +163,7 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
   ];
   // ファイルから読み込む列。id/tx_number/type/account_id/created_at/updated_atは
   // このアプリでは扱わない（編集機能なし・閲覧専用のため）
-  const HEADER = ['date','category','sub_name','shop','amount','memo'];
+  const HEADER = ['date','category','sub_name','item_name','shop','amount','memo'];
   let transactions = [];
   let cursor = new Date();
   let view = 'overview'; // 'overview'(月別一覧) | 'month'(月別詳細)
@@ -494,7 +494,7 @@ parse_Primary(n.content)}catch(l){}a="/EncryptionInfo";n=Qe.find(e,a);if(!n||!n.
       <li class="txRow">
         <span class="txStamp" style="border-color:${catColor(t.category)};color:${catColor(t.category)};">${(t.category||'').slice(0,2)}</span>
         <div class="txMain">
-          <div class="txTopRow"><span class="txDate">${(t.date||'').slice(5).replace('-','/')}</span><span class="txCategory">${escapeHtml(t.category || '')}${t.sub_name ? ' / ' + escapeHtml(t.sub_name) : ''}</span></div>
+          <div class="txTopRow"><span class="txDate">${(t.date||'').slice(5).replace('-','/')}</span><span class="txCategory">${escapeHtml(t.category || '')}${t.sub_name ? ' / ' + escapeHtml(t.sub_name) : ''}${t.item_name ? ' / ' + escapeHtml(t.item_name) : ''}</span></div>
           ${subLine ? `<div class="txMemo">${subLine}</div>` : ''}
         </div>
         <span class="txAmount" style="color:#B23A2E;">${fmtYen(t.amount)}</span>
